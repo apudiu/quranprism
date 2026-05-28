@@ -30,7 +30,15 @@ Go single binary (api/worker/cron) · Bun runtime/tooling · SolidStart + TS str
 
 ## Hard constraints (inviolable)
 
-<!-- TODO: define product-policy hard constraints (e.g. Quran text accuracy, translation attribution and licensing, recitation audio licensing, GDPR) when product decisions are made. Until then this section is intentionally empty. -->
+These mirror `prd/compliance.md` CMP-1 to CMP-6. Violating any of them is grounds to reject a design or a PR.
+
+- **No ads, ever, anywhere in the app.** Marketing pages, profile, settings, listening view — zero ad slots, zero ad SDK references, zero affiliate sneaks. Revenue is Paid-tier subscriptions only.
+- **No AI-generated or TTS audio anywhere.** Every audio file (Arabic recitation and translation narration alike) is human-recorded and human-uploaded by admin. Implements `CMP-2`.
+- **Translator-purity within a (Surah, Language) slot.** Structurally enforced because each Reciter is bound to exactly one Translator (`REC-2`). Implements `CMP-3`.
+- **Whole-Surah Reciter coverage.** A Reciter has audio for ALL Ayahs of any Surah they appear in. Partial-Surah coverage is rejected at publish (`REC-6`). Implements `CMP-4`.
+- **Arabic recitation is never time-stretched or pitch-shifted.** When playback-speed control is added in a future release, it applies only to non-Arabic audio tracks; Arabic always plays at 1.0×. Preserves Tajweed pacing. Implements `CMP-5`.
+- **Arabic Quran text source is fixed**: ingest only from the Quran.com curated Uthmani Hafs dataset (`CON-4`). No editing of Arabic text by humans or machines once ingested. Implements `CMP-6`.
+- **GDPR-equivalent**: data export and deletion honored within 30 days of a verified request (`PRV-1`, `PRV-4`). Implements the standard privacy obligation.
 
 ## Things to never do
 
@@ -45,7 +53,7 @@ Go single binary (api/worker/cron) · Bun runtime/tooling · SolidStart + TS str
 
 ## Product rules
 
-Product requirements and business decisions live in `prd/`. The canonical tier matrix (free vs paid) is not yet defined — see `prd/README.md`.
+Product requirements and business decisions live in `prd/`. The canonical tier matrix (Free vs Paid) is in `prd/README.md`. Free covers everything personal (unlimited playlists, bookmarks, listening, direct user-to-user sharing). Paid unlocks public link share, public profile, and collaborative playlists with sync listening. No ads on either tier.
 
 ## Go conventions
 

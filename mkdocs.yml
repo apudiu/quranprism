@@ -40,6 +40,20 @@ nav:
       - Progress: tasks/progress.md
   - Product Requirements:
       - Overview: prd/README.md
+      - Content (Surah, Ayah): prd/content.md
+      - Translation: prd/translation.md
+      - Recitation: prd/recitation.md
+      - Accounts: prd/accounts.md
+      - ACL: prd/acl.md
+      - Playlists: prd/playlists.md
+      - Playback: prd/playback.md
+      - Bookmarks: prd/bookmarks.md
+      - Sharing: prd/sharing.md
+      - Collaboration: prd/collaboration.md
+      - Notifications: prd/notifications.md
+      - Admin: prd/admin.md
+      - Compliance: prd/compliance.md
+      - Privacy: prd/privacy.md
   - Engineering:
       - Architecture: architecture.md
       - Database schema: database-schema.md
