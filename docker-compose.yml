@@ -21,6 +21,62 @@ services:
     # noinspection ComposeUnknownKeys
     attach: false
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: qp-redis
+    restart: unless-stopped
+    # appendonly keeps cache + rate-limit counters across restarts during dev so
+    # we don't lose lockout windows mid-debug. Prod will run with its own policy.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # noinspection ComposeUnknownKeys
+    attach: false
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: qp-nats
+    restart: unless-stopped
+    # `-c` mounts our dev config (JetStream + WebSocket gateway enabled).
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"   # clients
+      - "8222:8222"   # monitoring
+      - "8080:8080"   # browser WebSocket gateway
+    volumes:
+      - ./deploy/nats/dev.conf:/etc/nats/nats.conf:ro
+      - nats_data:/data
+    healthcheck:
+      # /healthz returns 200 once the server (and JetStream, with ?js-enabled-only=true) is ready.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # noinspection ComposeUnknownKeys
+    attach: false
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: qp-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP — what the api Mailer connects to in dev
+      - "8025:8025"   # web inbox — http://localhost:8025 to read captured mails
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8025/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # noinspection ComposeUnknownKeys
+    attach: false
+
   api:
     build:
       context: ./apps/api
@@ -30,9 +86,31 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
     environment:
+      APP_ENV: development
       PORT: "3000"
       DATABASE_URL: postgres://qp:qp_dev@postgres:5432/qp?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      NATS_URL: nats://nats:4222
+      # Comma-separated rotating-secret list (current first, then previous).
+      # Dev-only values — never reuse in any non-dev environment.
+      JWT_SECRETS: "dev_jwt_secret_change_me_in_prod"
+      # Access tokens (~15min); refresh cookie lifetime (~30 days).
+      JWT_ACCESS_TTL: "15m"
+      JWT_REFRESH_TTL: "720h"
+      # Dev mailer points at the Mailpit SMTP listener.
+      MAILER_DRIVER: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      MAILER_FROM: "no-reply@quranprism.local"
+      # Used to build verification + password-reset links in emails.
+      APP_BASE_URL: "http://localhost:3002"
       GOFLAGS: "-buildvcs=false"
     ports:
       - "3000:3000"
@@ -145,6 +223,10 @@ services:
 volumes:
   postgres_data:
     name: qp_postgres_data
+  redis_data:
+    name: qp_redis_data
+  nats_data:
+    name: qp_nats_data
   go_mod_cache:
     name: qp_go_mod_cache
   go_build_cache:

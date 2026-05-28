@@ -39,6 +39,7 @@ site/
 /apps/api/api
 /apps/api/worker
 /apps/api/cron
+/apps/api/river-migrate
 
 # Environment files
 .env

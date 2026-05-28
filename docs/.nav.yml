@@ -1,0 +1,15 @@
+# Site-wide nav. awesome-nav v3 walks the docs tree and merges with each
+# subdirectory's own .nav.yml file (tasks/.nav.yml, decisions/.nav.yml).
+# Adding a new PRD / task / ADR / decision just drops a file in place —
+# no edit to this file or mkdocs.yml needed for the sidebar to update.
+nav:
+  - Home: index.md
+  - Tasks: tasks
+  - Product Requirements: prd
+  - Engineering:
+      - Architecture: architecture.md
+      - Database schema: database-schema.md
+      - Decisions: decisions
+  - Legal:
+      - Privacy policy: privacy-policy.md
+      - Terms of service: terms-of-service.md

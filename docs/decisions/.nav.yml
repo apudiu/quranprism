@@ -1,0 +1,5 @@
+# Auto-list every ADR under Engineering > Decisions. ADRs use a
+# numeric prefix (0001-*, 0002-*, ...) so glob ordering matches
+# chronology.
+nav:
+  - "*"

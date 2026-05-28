@@ -1,1 +1,6 @@
 mkdocs-material>=9.6
+# Lets us point a nav entry at a directory and have mkdocs pick up files
+# automatically. Needed because tasks/T-NNN-*.md files come and go with
+# the task lifecycle — we don't want to hand-edit mkdocs.yml on every
+# task transition.
+mkdocs-awesome-nav>=3

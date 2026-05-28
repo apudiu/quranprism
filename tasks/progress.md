@@ -3,16 +3,15 @@
 Live index of all work in this repo — single source of truth for "where are we / what's next".
 Rules + lifecycle: see `CLAUDE.md` → **Progress tracking**. Keep terse. No historical log: shipped work folds into Project State and its per-task file is deleted.
 
-_Last updated: 2026-05-28 · apu@laptop (v1 PRDs locked)_
+_Last updated: 2026-05-28 · apu@laptop_
 
 ## Project State
 
 Current working reality of the repo (what is built + committed unless noted).
 
-- **Initial scaffold** (committed as `e202d0c` on `origin/main`): polyglot monorepo mirroring the ytlistkeeper layout. Bun workspaces (`@qp/web`, `@qp/admin`, `@qp/ui`, `@qp/http`), Go module `github.com/apudiu/quranprism/api` with three `cmd/` entrypoints (api/worker/cron — only api has a working `main.go` with chi `/hc` route), `pkg/ui` and `pkg/http` carried over with namespace renamed. `docker-compose.yml` boots postgres 18 + api (`:3000`) + web (`:3002`) + admin (`:3001`).
-- **Dev stack** (committed): root `docker-compose.yml`, container/volume prefix `qp` (`qp-postgres`, `qp_postgres_data`, etc.). All four services healthy locally.
-- **Docs site** (committed): mkdocs-material via `docker compose --profile docs up docs` → http://localhost:8000.
-- **v1 PRDs locked**: 14 per-domain PRD files written under `prd/` covering Content, Translation, Recitation, Accounts, ACL, Playlists, Playback, Bookmarks, Sharing, Collaboration, Notifications, Admin, Compliance, Privacy. `prd/README.md` carries the canonical tier matrix and domains index. Root `CLAUDE.md` Hard constraints filled in (no ads, no AI/TTS audio, translator-purity, whole-Surah Reciter coverage, Arabic 1.0× speed lock, Arabic text source locked to Quran.com Uthmani Hafs, GDPR 30-day). No code implementing these requirements yet.
+- **Initial scaffold** (`e202d0c` on `origin/main`) — polyglot monorepo mirroring ytlistkeeper; container/volume prefix `qp`; compose dev stack healthy locally.
+- **v1 PRDs locked** (`8b6eac2` on `origin/main`) — 14 per-domain PRD files in `prd/`; tier matrix + hard constraints canonical in root `CLAUDE.md`.
+- **Docs site** — mkdocs-material via `docker compose --profile docs up docs` → http://localhost:8000.
 
 ## Active Tasks
 
@@ -20,29 +19,26 @@ Copy `_TEMPLATE.md` → `tasks/<id>-<slug>.md` to start; assign next free `T-NNN
 
 | ID | Task | Status | Owner/Machine | File |
 |----|------|--------|---------------|------|
-| _(none yet)_ | | | | |
+| T-001 | API architecture lock + User & Auth module | in review | apu@laptop | [T-001-api-arch-and-user-auth.md](./T-001-api-arch-and-user-auth.md) |
 
 ## Planned (backlog)
 
 Ordered. Promote to Active when started.
 
-- [ ] DB schema + goose migrations (`apps/api/migrations/`) — driven by PRD entity definitions (Users, Groups, Permissions, Languages, Translators, Reciters, Surahs, Ayahs, AudioFiles, TranslationText, Playlists, Bookmarks, etc.)
-- [ ] sqlc query layer (`apps/api/internal/db/`)
-- [ ] ACL infrastructure (`internal/acl/`) — Permission/Group/User M:N, seed groups (Default user, Super Admin, Content Manager), middleware
-- [ ] Auth (`internal/auth/`) — email+password signup with email verification, JWT + refresh-cookie sessions
-- [ ] `cmd/worker` + `cmd/cron` entrypoints + River job queue wiring
-- [ ] Quran.com ingest pipeline — Surahs, Ayahs, Bismillah/Sajdah/Juz markers, translation text, audio metadata for popular reciters
+- [ ] Full ACL middleware (`RequirePermission("Subject:action")`) + admin endpoints for groups/permissions CRUD
+- [ ] River workers: data-export, post-grace user hard-delete, login-attempt prune cron
+- [ ] Notifications module (in-app inbox + SES email, wickmeet coalescing pattern)
+- [ ] NATS-WS gateway client-facing wiring (consumed by notifications inbox / sync sessions)
+- [ ] Content ingest pipeline (Surahs, Ayahs, Bismillah/Sajdah/Juz, translation text, audio metadata) from Quran.com Uthmani Hafs
 - [ ] Admin API: catalog ops (Language/Translator/Reciter CRUD), audio upload pipeline, audit log
-- [ ] User API: Playlists, per-Surah Reciter selection, language stack, volume mix, save validation
+- [ ] User API: Playlists (per-Surah Reciter selection, language stack, volume mix)
 - [ ] Playback API: progress (Surah:Ayah + offset), repeat modes, multi-device LWW
 - [ ] Bookmarks + Categories API
-- [ ] Sharing: direct user-to-user (Free), public link + profile (Paid), comment-style suggestions, access requests
-- [ ] Notifications: in-app inbox, email via SES, coalescing model (wickmeet pattern)
-- [ ] Collaboration (Paid): roles, sync sessions, real-time transport
-- [ ] Web app: listening UI with configurable language stack, per-Surah reciter picker, smart-default propagation
-- [ ] Admin app: catalog management UI, audio upload UI, user/group management
+- [ ] Sharing: direct user-to-user (Free), public link + profile (Paid), comments + access requests
+- [ ] Collaboration (Paid): roles, transient sync sessions, real-time transport over NATS-WS
+- [ ] Web app listening UI + admin app catalog UI
 - [ ] i18n framework + English/Bengali UI strings
-- [ ] k8s deploy wiring (`infra/k8s/`)
+- [ ] k8s deploy wiring (`deploy/k8s/`)
 
 ## Deferred
 
@@ -62,3 +58,7 @@ Durable cross-task warnings. Prune when obsolete.
 - air writes builds to `apps/api/tmp/`. Go build artifacts (`apps/api/api`, `apps/api/tmp/`) are gitignored — never commit them.
 - Docs live-reload: `squidfunk/mkdocs-material:9` ships a broken `serve` watcher. The docs image is built from `python:3.12-alpine` instead (`docs/Dockerfile-dev`); `prd/`/`tasks/` reload via `--watch` since mkdocs won't follow their symlinks.
 - k8s api probes hit `/hc` — keep `cmd/api`'s health route named `/hc`.
+- **fx graph cycle on shared route prefix**: `chi.Mount` panics if two modules `r.Route("/v1/me", ...)` on the same prefix. Modules sharing a prefix must use flat path mounts (`r.With(mw).Post("/v1/me/change-password", ...)`) instead.
+- **sqlc `bool` from boolean expression**: `SELECT x IS NOT NULL AS v` gets inferred as `interface{}` — cast: `SELECT (x IS NOT NULL)::BOOLEAN AS v` to lock the type.
+- **`RouteRegistrar` import cycle**: keep the type in a leaf package (`internal/transport/http/router`) — never in `internal/app` (which imports modules). Modules import `router`; app imports `router`; neither depends on the other.
+- **River + NATS division of labour**: jobs (atomically enqueued in same `pgx.Tx` as the DB write) → River; pub/sub fan-out + realtime → NATS JetStream + NATS WebSocket. Never the reverse — moving jobs onto NATS forces a transactional-outbox table and an idempotency envelope we don't otherwise need at our scale.

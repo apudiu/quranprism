@@ -1,0 +1,7 @@
+# Drives the Tasks section in the docs sidebar.
+# progress.md stays pinned first; every T-NNN-*.md task file globs in
+# automatically so the lifecycle (create → ship + delete) doesn't need
+# a mkdocs.yml edit.
+nav:
+  - progress.md
+  - "T-*.md"

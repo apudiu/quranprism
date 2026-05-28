@@ -6,11 +6,15 @@ Multilingual Quran listening service. Plays Quran recitation interleaved with us
 
 Polyglot monorepo. Bun manages JS/TS workspaces. The Go module is independent (not a Bun workspace).
 
-- `apps/api/` — Go backend, three `cmd/` entrypoints: `api`, `worker`, `cron`.
+- `apps/api/` — Go backend, three `cmd/` entrypoints (`api`, `worker`, `cron`) + `cmd/river-migrate` helper. Modular monolith composed with Uber fx; see `docs/decisions/0001-di-fx-modular-monolith.md`.
+- `apps/api/internal/platform/` — cross-cutting infra (config, logger, db, cache, pubsub, queue, mailer, jwt). Never imports `internal/modules/*`.
+- `apps/api/internal/transport/http/` — router, middleware, JSON envelope, typed-error → status mapping. Leaf `router.Registrar` interface (`http/router/`) breaks the modules-vs-app import cycle.
+- `apps/api/internal/modules/<name>/` — domain modules (NestJS-style bundle: service + repo + handler + dto + errors + tests). Each exports an `fx.Module`; handlers self-register on the chi router via `group:"routes"`.
 - `apps/web/` — SolidStart user app. Workspace `@qp/web`.
 - `apps/admin/` — SolidStart admin app. Workspace `@qp/admin`.
 - `pkg/` — Shared TS packages, added on demand. Naming `@qp/<name>`.
-- `docker-compose.yml` — Local dev stack (postgres + api + web + admin), repo root.
+- `deploy/k8s/` — production manifests. `deploy/nats/dev.conf` — dev-only NATS config (JetStream + WebSocket).
+- `docker-compose.yml` — Local dev stack (postgres + redis + nats + mailpit + api + web + admin), repo root.
 - `docs/` — Architecture, ADRs, legal.
 - `prd/` — Product requirements + business decisions (see **Product requirements**).
 - `tasks/` — Progress tracking (see **Progress tracking**).
@@ -19,14 +23,18 @@ Polyglot monorepo. Bun manages JS/TS workspaces. The Go module is independent (n
 
 Authoritative. Prefer latest stable for new deps; bump pins deliberately and update this list in the same PR.
 
-- Go 1.26 (min 1.26.0) · Bun 1.3.14 (`.bun-version`) · PostgreSQL 18.4
+- Go 1.26 (min 1.26.0) · Bun 1.3.14 (`.bun-version`) · PostgreSQL 18.4 · Redis 7.4 · NATS 2.10 · Mailpit v1.20 (dev SMTP)
 - SolidStart `@solidjs/start` 2.0.0-alpha + `@solidjs/vite-plugin-nitro-2` (alpha — pin exact, bump deliberately) · `solid-js` 1.9.x
-- pgx `github.com/jackc/pgx/v5` v5.9.x · sqlc v1.31.x · River `github.com/riverqueue/river` v0.31.x
-- chi `github.com/go-chi/chi/v5` v5.x · goose `github.com/pressly/goose/v3` v3.x · AWS SDK Go `aws-sdk-go-v2`
+- DI: `go.uber.org/fx` v1.24.x (Nest-style modular composition, see `docs/decisions/0001-di-fx-modular-monolith.md`)
+- pgx `github.com/jackc/pgx/v5` v5.9.x · sqlc v1.31.x · goose `github.com/pressly/goose/v3` v3.27.x
+- River `github.com/riverqueue/river` v0.38.x (Postgres-atomic job queue) · NATS `github.com/nats-io/nats.go` v1.52.x (pub/sub + WS realtime)
+- Cache `github.com/redis/go-redis/v9` v9.20.x · JWT `github.com/golang-jwt/jwt/v5` v5.3.x (HS256, rotating secret list)
+- Mail `github.com/wneessen/go-mail` v0.7.x · Env `github.com/caarlos0/env/v11` v11.4.x · UUID `github.com/google/uuid` v1.6.x
+- chi `github.com/go-chi/chi/v5` v5.x · AWS SDK Go `aws-sdk-go-v2`
 
 ## Stack
 
-Go single binary (api/worker/cron) · Bun runtime/tooling · SolidStart + TS strict · PostgreSQL (RDS prod, compose local) · River queue (Postgres) · goose migrations (River migrates itself via `rivermigrate`) · sqlc query layer, no ORM · chi router · OAuth via `golang.org/x/oauth2` (forward-looking, if/when social login is added) · email via AWS SES (forward-looking) · Kubernetes on EC2 · Cloudflare DNS/CDN at the ingress.
+Go single binary (api/worker/cron) composed by **Uber fx** · Bun runtime/tooling · SolidStart + TS strict · PostgreSQL (RDS prod, compose local) · **Redis** (cache + rate-limit) · **NATS JetStream** (pub/sub fan-out + browser WebSocket gateway at :8080) · **River** queue (Postgres-atomic; see ADR-0001) · **Mailpit** dev SMTP / AWS SES prod via `wneessen/go-mail` · goose migrations (River migrates itself via `rivermigrate`) · sqlc query layer, no ORM · chi router · JWT HS256 with rotating secret list · OAuth via `golang.org/x/oauth2` (forward-looking, if/when social login is added) · Kubernetes on EC2 · Cloudflare DNS/CDN at the ingress.
 
 ## Hard constraints (inviolable)
 

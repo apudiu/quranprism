@@ -1,0 +1,18 @@
+# PRD ordering for the docs sidebar. The list below is the canonical
+# top-to-bottom order; adding a new PRD = add one line.
+nav:
+  - Overview: README.md
+  - Content: content.md
+  - Translation: translation.md
+  - Recitation: recitation.md
+  - Accounts: accounts.md
+  - ACL: acl.md
+  - Playlists: playlists.md
+  - Playback: playback.md
+  - Bookmarks: bookmarks.md
+  - Sharing: sharing.md
+  - Collaboration: collaboration.md
+  - Notifications: notifications.md
+  - Admin: admin.md
+  - Compliance: compliance.md
+  - Privacy: privacy.md

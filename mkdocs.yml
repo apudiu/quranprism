@@ -29,34 +29,19 @@ markdown_extensions:
       permalink: true
   - pymdownx.superfences
 
+# `awesome-nav` lets us point a nav entry at a directory (Tasks, Decisions)
+# so files added later — new T-NNN handoffs, new ADRs — show up
+# automatically without a mkdocs.yml edit on every task / decision.
+plugins:
+  - search
+  - awesome-nav
+
 # _TEMPLATE.md files are scaffolds, not pages.
 exclude_docs: |
   prd/_TEMPLATE.md
   tasks/_TEMPLATE.md
 
-nav:
-  - Home: index.md
-  - Tasks:
-      - Progress: tasks/progress.md
-  - Product Requirements:
-      - Overview: prd/README.md
-      - Content (Surah, Ayah): prd/content.md
-      - Translation: prd/translation.md
-      - Recitation: prd/recitation.md
-      - Accounts: prd/accounts.md
-      - ACL: prd/acl.md
-      - Playlists: prd/playlists.md
-      - Playback: prd/playback.md
-      - Bookmarks: prd/bookmarks.md
-      - Sharing: prd/sharing.md
-      - Collaboration: prd/collaboration.md
-      - Notifications: prd/notifications.md
-      - Admin: prd/admin.md
-      - Compliance: prd/compliance.md
-      - Privacy: prd/privacy.md
-  - Engineering:
-      - Architecture: architecture.md
-      - Database schema: database-schema.md
-  - Legal:
-      - Privacy policy: privacy-policy.md
-      - Terms of service: terms-of-service.md
+# Site navigation is driven by `.nav.yml` files distributed through the
+# docs tree (root: docs/.nav.yml). awesome-nav v3 ignores `nav:` declared
+# here, so keeping the structure next to the docs themselves means a new
+# task / ADR / PRD shows up automatically without touching this file.
