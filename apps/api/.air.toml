@@ -6,8 +6,12 @@ cmd = "go build -o ./tmp/qp ./cmd/qp"
 bin = "./tmp/qp"
 args_bin = ["serve:api"]
 include_ext = ["go"]
-include_dir = ["cmd/qp", "internal"]
-exclude_dir = ["tmp", "bin", "migrations", ".git"]
+# Watch the whole apps/api/ tree (root + cmd + internal) so additions
+# like migrations.go at the module root trigger rebuilds. Excluding
+# the .sql extension keeps editing a migration file from kicking the
+# server, since the embedded FS only refreshes on a Go recompile.
+exclude_ext = ["sql"]
+exclude_dir = ["tmp", "bin", ".git"]
 delay = 200
 stop_on_error = true
 send_interrupt = true

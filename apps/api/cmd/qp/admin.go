@@ -60,7 +60,7 @@ func runAdminGrant(email, groupName string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	pool, err := pgxpool.New(ctx, dsn)
@@ -72,20 +72,24 @@ func runAdminGrant(email, groupName string) error {
 	q := sqlcdb.New(pool)
 	auditSvc := audit.NewService(q)
 
-	user, err := q.GetUserByEmail(ctx, email)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return fmt.Errorf("user not found: %s (sign up + verify first)", email)
-		}
-		return fmt.Errorf("lookup user: %w", err)
-	}
-
 	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := q.WithTx(tx)
+
+	// Lookup inside the tx so the user row is read with the same snapshot
+	// as the upserts/joins below. Closes the TOCTOU window where a hard
+	// delete between lookup and JoinUserToGroup would surface as an FK
+	// violation.
+	user, err := qtx.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("user not found: %s (sign up + verify first)", email)
+		}
+		return fmt.Errorf("lookup user: %w", err)
+	}
 
 	// Inline seed so a truly-fresh DB (post-migrate:up, pre-serve:api) is
 	// safe to bootstrap. Discards the seed log — admin:grant's stdout is

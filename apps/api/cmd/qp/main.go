@@ -15,9 +15,13 @@ import (
 
 func main() {
 	root := &cobra.Command{
-		Use:           "qp",
-		Short:         "quranprism api control plane",
-		SilenceUsage:  true,
+		Use:   "qp",
+		Short: "quranprism api control plane",
+		// SilenceErrors stays on so main() can prefix the error with
+		// "qp:" instead of cobra's bare "Error:". SilenceUsage stays
+		// off so flag-validation failures include the usage block —
+		// the help hint is more valuable than the noise it adds on
+		// runtime errors.
 		SilenceErrors: true,
 	}
 	root.AddCommand(
