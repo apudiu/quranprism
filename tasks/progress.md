@@ -11,6 +11,7 @@ Current working reality of the repo (what is built + committed unless noted).
 
 - **Initial scaffold** (`e202d0c` on `origin/main`) — polyglot monorepo mirroring ytlistkeeper; container/volume prefix `qp`; compose dev stack healthy locally.
 - **v1 PRDs locked** (`8b6eac2` on `origin/main`) — 14 per-domain PRD files in `prd/`; tier matrix + hard constraints canonical in root `CLAUDE.md`.
+- **API spine + User & Auth** (`cf32070`, `a61d9b6` on `origin/dev`) — fx-composed modular monolith; platform layer (config/logger/db/cache/pubsub/queue/mailer/jwt) + transport (envelope, typed-error map, middleware: request_id/slog/CORS/recoverer/redis-Lua ratelimit/AuthRequired/EmailVerifiedRequired); `acl`/`user`/`auth` modules; `/v1/auth/*` + `/v1/me*` live; HttpOnly refresh cookie scoped to `/v1/auth`; ACL boot seed (22 perms, 3 system groups) idempotent; ADR-0001 covers the durable decisions; per-workspace `.env.{dev,stg,live}` adopted.
 - **Docs site** — mkdocs-material via `docker compose --profile docs up docs` → http://localhost:8000.
 
 ## Active Tasks
@@ -19,7 +20,7 @@ Copy `_TEMPLATE.md` → `tasks/<id>-<slug>.md` to start; assign next free `T-NNN
 
 | ID | Task | Status | Owner/Machine | File |
 |----|------|--------|---------------|------|
-| T-001 | API architecture lock + User & Auth module | in review | apu@laptop | [T-001-api-arch-and-user-auth.md](./T-001-api-arch-and-user-auth.md) |
+| _(none)_ | | | | |
 
 ## Planned (backlog)
 
