@@ -104,6 +104,25 @@ Bun only. Shared code in `pkg/<name>/` with `"name": "@qp/<name>"`; root `packag
 - `bun --filter '*' <script>` (all) · `bun --filter @qp/web <script>` (one)
 - New shared pkg: create `pkg/<name>/package.json` (`@qp/<name>`), then `bun add @qp/<name>@workspace:*` from a consumer.
 
+## Environment configuration
+
+Runtime config is env-driven and per-workspace. Each app owns three env
+files in its own directory:
+
+- `apps/api/.env.dev` / `.env.stg` / `.env.live`
+- `apps/web/.env.dev` / `.env.stg` / `.env.live`
+- `apps/admin/.env.dev` / `.env.stg` / `.env.live`
+
+`.env.dev` carries real dev-tier values and is committed; `.env.stg` and
+`.env.live` are committed templates with placeholder values (real
+production secrets land via Kubernetes Secret, never the repo). The
+compose stack is dev-only and references each service's `.env.dev`
+through `env_file:`. The postgres compose service shares
+`apps/api/.env.dev` because the api's `DATABASE_URL` encodes the same
+credentials — one source of truth avoids dev drift. Never inline env
+values in `docker-compose.yml` — add new keys to the corresponding
+`apps/<workspace>/.env.{dev,stg,live}` files instead.
+
 ## Development workflow
 
 - Full dev stack: `docker compose up -d` (repo root → postgres + api + web + admin)

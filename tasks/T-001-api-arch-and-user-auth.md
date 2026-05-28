@@ -35,6 +35,8 @@ only task-transient notes stay in this file.
 - [x] Smoke test end-to-end via docker compose (signup → mailpit → verify → login → /me → refresh → lockout → logout → forgot-password).
 - [x] `go test -race -short ./...` green; `golangci-lint run ./...` 0 issues.
 - [x] ADR-0001 written; mkdocs nav + CLAUDE.md pinned versions updated.
+- [x] mkdocs-awesome-nav adopted so Tasks / Decisions sidebars auto-pick up new files (no per-task mkdocs.yml edits).
+- [x] Env vars externalised: per-workspace `apps/<name>/.env.{dev,stg,live}` files; compose `env_file:` references them; no env values left inline.
 - [ ] User accepts the work → commit → fold into Project State as 1–2 lines → delete this file + remove dashboard row.
 
 ## Current state

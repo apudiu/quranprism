@@ -1,14 +1,18 @@
 name: qp
 
+# Each app workspace owns its own env files (.env.dev / .env.stg /
+# .env.live). Compose is dev-only, so it hard-wires .env.dev per
+# service. The postgres service shares apps/api/.env.dev because the
+# api's DATABASE_URL encodes the same credentials — keeping them in
+# one place avoids a drift class entirely.
+
 services:
   postgres:
     image: postgres:18.3-alpine
     container_name: qp-postgres
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: qp
-      POSTGRES_PASSWORD: qp_dev
-      POSTGRES_DB: qp
+    env_file:
+      - ./apps/api/.env.dev
     ports:
       - "5432:5432"
     volumes:
@@ -92,26 +96,8 @@ services:
         condition: service_healthy
       mailpit:
         condition: service_healthy
-    environment:
-      APP_ENV: development
-      PORT: "3000"
-      DATABASE_URL: postgres://qp:qp_dev@postgres:5432/qp?sslmode=disable
-      REDIS_URL: redis://redis:6379/0
-      NATS_URL: nats://nats:4222
-      # Comma-separated rotating-secret list (current first, then previous).
-      # Dev-only values — never reuse in any non-dev environment.
-      JWT_SECRETS: "dev_jwt_secret_change_me_in_prod"
-      # Access tokens (~15min); refresh cookie lifetime (~30 days).
-      JWT_ACCESS_TTL: "15m"
-      JWT_REFRESH_TTL: "720h"
-      # Dev mailer points at the Mailpit SMTP listener.
-      MAILER_DRIVER: smtp
-      SMTP_HOST: mailpit
-      SMTP_PORT: "1025"
-      MAILER_FROM: "no-reply@quranprism.local"
-      # Used to build verification + password-reset links in emails.
-      APP_BASE_URL: "http://localhost:3002"
-      GOFLAGS: "-buildvcs=false"
+    env_file:
+      - ./apps/api/.env.dev
     ports:
       - "3000:3000"
     volumes:
@@ -154,8 +140,8 @@ services:
         condition: service_completed_successfully
       api:
         condition: service_healthy
-    environment:
-      NODE_ENV: development
+    env_file:
+      - ./apps/web/.env.dev
     ports:
       - "3002:3002"
     volumes:
@@ -185,8 +171,8 @@ services:
         condition: service_completed_successfully
       api:
         condition: service_healthy
-    environment:
-      NODE_ENV: development
+    env_file:
+      - ./apps/admin/.env.dev
     ports:
       - "3001:3001"
     volumes:
