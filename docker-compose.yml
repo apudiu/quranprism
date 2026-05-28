@@ -1,0 +1,151 @@
+name: qp
+
+services:
+  postgres:
+    image: postgres:18.3-alpine
+    container_name: qp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qp
+      POSTGRES_PASSWORD: qp_dev
+      POSTGRES_DB: qp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qp -d qp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    # noinspection ComposeUnknownKeys
+    attach: false
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile-dev
+    container_name: qp-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://qp:qp_dev@postgres:5432/qp?sslmode=disable
+      GOFLAGS: "-buildvcs=false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/api:/src
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    healthcheck:
+      # busybox wget (golang-alpine) hits the chi /hc route.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/hc || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 40s   # air compiles the binary on first boot
+
+  # Pre-create the node_modules mountpoints owned by the host user (derived from
+  # the bind-mounted repo's owner) so the root daemon reuses them instead of
+  # creating root:root dirs that block host `bun install`. Idempotent + self-healing.
+  init-deps:
+    image: alpine:3.20
+    container_name: qp-init-deps
+    restart: "no"
+    volumes:
+      - .:/app
+    command:
+      - sh
+      - -c
+      - >
+        mkdir -p /app/node_modules /app/apps/web/node_modules /app/apps/admin/node_modules &&
+        chown "$$(stat -c %u /app):$$(stat -c %g /app)"
+        /app/node_modules /app/apps/web/node_modules /app/apps/admin/node_modules
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile-dev
+    container_name: qp-web
+    restart: unless-stopped
+    depends_on:
+      init-deps:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3002:3002"
+    volumes:
+      - .:/app
+      # Anonymous volumes mask the bind-mounted host node_modules with the
+      # image's installed deps. Anonymous (not named) so `down` orphans them and
+      # the next `up --build` re-seeds from the rebuilt image — new deps just work.
+      # init-deps pre-creates these mountpoints so the host copies stay host-owned.
+      - /app/node_modules
+      - /app/apps/web/node_modules
+    healthcheck:
+      # busybox wget (node-alpine) hits the vite dev SSR server.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3002/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s   # vite dev cold start
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile-dev
+    container_name: qp-admin
+    restart: unless-stopped
+    depends_on:
+      init-deps:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/app
+      # Anonymous (see web): orphaned on `down`, re-seeded on next `up --build`.
+      - /app/node_modules
+      - /app/apps/admin/node_modules
+    healthcheck:
+      # busybox wget (node-alpine) hits the vite dev SSR server.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3001/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s   # vite dev cold start
+
+  # Docs site (mkdocs-material). Opt-in: `docker compose --profile docs up docs`.
+  # Renders docs/ + the PRD (via the docs/prd symlink) at http://localhost:8000.
+  docs:
+    # Custom image: the official squidfunk/mkdocs-material:9 has a broken
+    # live-reload (its serve never starts the watcher). See docs/Dockerfile-dev.
+    build:
+      context: ./docs
+      dockerfile: Dockerfile-dev
+    container_name: qp-docs
+    profiles: ["docs"]
+    working_dir: /docs
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/docs
+    # noinspection ComposeUnknownKeys
+    attach: false
+
+volumes:
+  postgres_data:
+    name: qp_postgres_data
+  go_mod_cache:
+    name: qp_go_mod_cache
+  go_build_cache:
+    name: qp_go_build_cache

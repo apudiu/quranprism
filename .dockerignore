@@ -1,0 +1,40 @@
+# Repo-root .dockerignore for the Bun-monorepo build context (web, admin).
+# apps/api uses its own context and its own apps/api/.dockerignore.
+
+# Dependency trees — installed inside the image, not copied from host
+node_modules/
+apps/*/node_modules/
+pkg/*/node_modules/
+
+# Build artifacts
+apps/api/bin/
+apps/api/tmp/
+apps/web/.output/
+apps/web/.solid/
+apps/web/dist/
+apps/admin/.output/
+apps/admin/.solid/
+apps/admin/dist/
+
+# Go module cache (irrelevant for Bun builds; api uses apps/api context anyway)
+apps/api/vendor/
+
+# VCS + editor + OS junk
+.git/
+.gitignore
+.github/
+.vscode/
+.idea/
+.DS_Store
+
+# Local-only directories
+deploy/
+docs/
+
+# Docs and meta
+*.md
+LICENSE
+
+# Don't ship the production Dockerfiles into a dev build
+**/Dockerfile
+**/Dockerfile-dev

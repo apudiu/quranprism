@@ -1,0 +1,136 @@
+# quranprism
+
+Multilingual Quran listening service. Plays Quran recitation interleaved with user-configurable translations — Arabic → English → Spanish → Bangla → … verse by verse. One source text refracted into every language the listener wants.
+
+## Repository shape
+
+Polyglot monorepo. Bun manages JS/TS workspaces. The Go module is independent (not a Bun workspace).
+
+- `apps/api/` — Go backend, three `cmd/` entrypoints: `api`, `worker`, `cron`.
+- `apps/web/` — SolidStart user app. Workspace `@qp/web`.
+- `apps/admin/` — SolidStart admin app. Workspace `@qp/admin`.
+- `pkg/` — Shared TS packages, added on demand. Naming `@qp/<name>`.
+- `docker-compose.yml` — Local dev stack (postgres + api + web + admin), repo root.
+- `docs/` — Architecture, ADRs, legal.
+- `prd/` — Product requirements + business decisions (see **Product requirements**).
+- `tasks/` — Progress tracking (see **Progress tracking**).
+
+## Pinned versions
+
+Authoritative. Prefer latest stable for new deps; bump pins deliberately and update this list in the same PR.
+
+- Go 1.26 (min 1.26.0) · Bun 1.3.14 (`.bun-version`) · PostgreSQL 18.4
+- SolidStart `@solidjs/start` 2.0.0-alpha + `@solidjs/vite-plugin-nitro-2` (alpha — pin exact, bump deliberately) · `solid-js` 1.9.x
+- pgx `github.com/jackc/pgx/v5` v5.9.x · sqlc v1.31.x · River `github.com/riverqueue/river` v0.31.x
+- chi `github.com/go-chi/chi/v5` v5.x · goose `github.com/pressly/goose/v3` v3.x · AWS SDK Go `aws-sdk-go-v2`
+
+## Stack
+
+Go single binary (api/worker/cron) · Bun runtime/tooling · SolidStart + TS strict · PostgreSQL (RDS prod, compose local) · River queue (Postgres) · goose migrations (River migrates itself via `rivermigrate`) · sqlc query layer, no ORM · chi router · OAuth via `golang.org/x/oauth2` (forward-looking, if/when social login is added) · email via AWS SES (forward-looking) · Kubernetes on EC2 · Cloudflare DNS/CDN at the ingress.
+
+## Hard constraints (inviolable)
+
+<!-- TODO: define product-policy hard constraints (e.g. Quran text accuracy, translation attribution and licensing, recitation audio licensing, GDPR) when product decisions are made. Until then this section is intentionally empty. -->
+
+## Things to never do
+
+- Never edit a migration already applied in any environment — write a new one to correct it.
+- Never commit secrets — use env vars from Kubernetes secrets.
+- Never use npm, pnpm, or yarn. Bun only.
+- Never add Go code to a Bun workspace package.
+- Never use an ORM in Go — sqlc is the query layer.
+- Never downgrade `@solidjs/start` to 1.x, or mix 1.x and 2.x conventions.
+- Never leave AI-tooling traces anywhere in the repo or history: no `Co-Authored-By:` agent trailers, "Generated with …" lines, 🤖 markers, or model/agent names in commits, PRs, code, or docs. Human author identity only. (`CLAUDE.md` filenames are the one intentional exception.)
+- Never commit, push, or rewrite git history unless explicitly asked. No auto-commits — finish, then await a commit instruction.
+
+## Product rules
+
+Product requirements and business decisions live in `prd/`. The canonical tier matrix (free vs paid) is not yet defined — see `prd/README.md`.
+
+## Go conventions
+
+- Standard layout: `cmd/` + `internal/`. No `pkg/` inside the Go module.
+- Wrap errors `fmt.Errorf("context: %w", err)`. Sentinel errors are exported package vars.
+- `log/slog`: JSON handler in prod, text in dev.
+- Every function touching DB/HTTP/external services takes `ctx context.Context` first.
+- No global state except logger and metrics registry; everything else via struct fields.
+- Tests table-driven in `_test.go`, no testify mocks — handwritten doubles.
+- `golangci-lint` must pass (CI fails on any lint error).
+
+## SQL conventions
+
+- Forward-only migrations in prod; correct mistakes with a new migration.
+- Explicit foreign keys with explicit `ON DELETE`.
+- `TIMESTAMPTZ` always, never bare `TIMESTAMP`.
+- `snake_case` tables/columns. Indexes named `idx_<table>_<column(s)>`.
+
+## Comments
+
+Write what a human teammate would, only where it earns its place.
+
+- Comment the **why**/intent, not the obvious what.
+- Short plain-language note on each non-trivial feature, exported function, type/class, config option — enough to grasp purpose and gotchas at a glance.
+- Brief and natural; one line beats a paragraph.
+- No bloat: no signature restating, banner art, commented-out code, or narrating trivial lines.
+
+## Frontend conventions
+
+- TS strict throughout. Tailwind only (no CSS modules / styled-components).
+- Kobalte for accessible primitives. TanStack Solid Query for server state.
+- No prop drilling beyond two levels — lift to context.
+- Shared UI primitives in `pkg/ui/` once both apps need them, not before.
+
+## Workspace and package management
+
+Bun only. Shared code in `pkg/<name>/` with `"name": "@qp/<name>"`; root `package.json` already globs `pkg/*`; apps import `@qp/<name>` (Bun symlinks, no dev build step).
+
+- `bun add <pkg>` · `bun add -d <pkg>` (dev) · `bun add --filter @qp/web <pkg>` (one workspace)
+- `bun --filter '*' <script>` (all) · `bun --filter @qp/web <script>` (one)
+- New shared pkg: create `pkg/<name>/package.json` (`@qp/<name>`), then `bun add @qp/<name>@workspace:*` from a consumer.
+
+## Development workflow
+
+- Full dev stack: `docker compose up -d` (repo root → postgres + api + web + admin)
+- API / worker / cron: `cd apps/api && make run-api` (`run-worker`, `run-cron`)
+- Web / admin: `bun run dev:web` · `bun run dev:admin`
+- Migrations: `make migrate-up` · `make migrate-down` · `make river-migrate-up` (in `apps/api`)
+- Tests: `cd apps/api && make test` · `bun test --filter '*'`
+- Lint: `bun run lint` · `cd apps/api && golangci-lint run`
+- Docs site (mkdocs-material): `docker compose --profile docs up docs` → http://localhost:8000. Renders `docs/` + the PRD via the `docs/prd` symlink (edit `prd/`, not `docs/prd`).
+
+## Product requirements
+
+Product requirements and business decisions live in `prd/` — per-domain files with stable requirement IDs, indexed by `prd/README.md`.
+
+- Before building or changing a module, read its `prd/<domain>.md` for expected behavior and tier gating.
+- Cite requirement IDs in code comments and commits (e.g. "implements `REC-2`").
+- New product/business rules go to `prd/`, never inline in code or this file. Engineering/how decisions go to `docs/decisions/` (ADRs). Operational task state goes to `tasks/`.
+
+## Progress tracking
+
+Work state lives in `tasks/` so any agent on any machine can resume cold.
+
+- `tasks/progress.md` — dashboard: Project State snapshot + one-line task index + planned backlog + durable gotchas. Keep ~1 screen; no task detail.
+- `tasks/<id>-<slug>.md` — one self-contained handoff file per active/deferred task. Copy `tasks/_TEMPLATE.md` to start.
+
+Rules:
+- Session start: read `tasks/progress.md`, then the relevant task file. Don't touch another task's file.
+- Keep the task file's "Current state" + checklist accurate; bump `Updated` and the dashboard `Last updated`.
+- Lifecycle: planned → active (copy template to `tasks/<id>-<slug>.md`, add dashboard row, next free `T-NNN`) → shipped (fold outcome into Project State as 1–2 lines, write a `docs/decisions/` ADR if durable, then delete the task file + remove its row).
+- One file per task; concurrent tasks = concurrent files.
+- Durable architecture decisions → `docs/decisions/` ADRs; only task-transient choices live in the task file.
+- No history: dashboard holds current + planned + deferred only. Prune stale notes.
+
+## Reference documents
+
+Read the relevant doc before working in its area.
+
+- `prd/` — product requirements, business decisions, free vs paid breakdown
+- `docs/architecture.md` — services and boundaries
+- `docs/database-schema.md` — schema + rationale
+- `docs/privacy-policy.md` · `docs/terms-of-service.md`
+- `docs/decisions/` — ADRs
+
+## Scaffolding
+
+`apps/web` and `apps/admin` are SolidStart 2 apps (`bun create solid`: TypeScript, SSR on, names `@qp/web` / `@qp/admin`, tsconfig extends `tsconfig.base.json`). To re-scaffold from scratch, repeat that and `bun install` at the root.

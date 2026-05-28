@@ -1,0 +1,31 @@
+{
+  "name": "@qp/admin",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "vite start",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@modular-forms/solid": "catalog:main",
+    "@solidjs/router": "catalog:main",
+    "@solidjs/start": "catalog:main",
+    "@solidjs/vite-plugin-nitro-2": "catalog:main",
+    "@tanstack/solid-query": "catalog:main",
+    "@tanstack/solid-table": "catalog:main",
+    "@qp/http": "workspace:*",
+    "@qp/ui": "workspace:*",
+    "lucide-solid": "catalog:main",
+    "solid-js": "catalog:main",
+    "valibot": "catalog:main",
+    "vite": "catalog:main"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:dev",
+    "tailwindcss": "catalog:dev"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

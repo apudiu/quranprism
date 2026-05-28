@@ -1,0 +1,26 @@
+# Pinned Bun binary copied in from oven's official image.
+FROM oven/bun:1.3.14-alpine AS bun
+
+# Real Node 24 base. Bun stays the install tool, Node runs vite.
+FROM node:24-alpine
+
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+
+WORKDIR /app
+
+# Copy workspace manifests + lockfile so Bun can resolve the workspace graph.
+# Source is bind-mounted at runtime; this layer seeds node_modules in named volumes.
+COPY package.json bun.lock bunfig.toml ./
+COPY apps/web/package.json ./apps/web/
+COPY apps/admin/package.json ./apps/admin/
+COPY pkg/ui/package.json ./pkg/ui/
+COPY pkg/http/package.json ./pkg/http/
+# NOTE: when pkg/* packages are added, add a COPY line for each package.json.
+
+RUN bun install --frozen-lockfile
+
+WORKDIR /app/apps/admin
+
+EXPOSE 3001
+
+CMD ["node", "node_modules/.bin/vite", "dev", "--host", "0.0.0.0", "--port", "3001"]

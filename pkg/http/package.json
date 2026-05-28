@@ -1,0 +1,20 @@
+{
+  "name": "@qp/http",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "catalog:main"
+  },
+  "devDependencies": {
+    "@tanstack/solid-query": "catalog:main"
+  },
+  "peerDependencies": {
+    "@tanstack/solid-query": "*"
+  }
+}

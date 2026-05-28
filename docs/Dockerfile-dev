@@ -1,0 +1,21 @@
+# Dev docs server (mkdocs-material live preview).
+#
+# We build our own image instead of using squidfunk/mkdocs-material:9 — that
+# official image ships a broken `mkdocs serve` whose file watcher never starts
+# (no "Watching paths for changes" line, no live reload), even on a clean tree.
+# A plain pip install on python-alpine reloads correctly with identical
+# mkdocs/material/watchdog versions.
+FROM python:3.12-alpine
+
+WORKDIR /docs
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+EXPOSE 8000
+
+# --watch prd / --watch tasks: both are surfaced through symlinks (docs/prd,
+# docs/tasks) whose real sources live at repo root; mkdocs won't follow symlinks,
+# so watch the real dirs for live-reload. Run from /docs (repo root, bind-mounted)
+# where mkdocs.yml lives.
+CMD ["mkdocs", "serve", "--dev-addr", "0.0.0.0:8000", "--watch", "prd", "--watch", "tasks"]

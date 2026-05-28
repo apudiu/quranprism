@@ -1,0 +1,24 @@
+{
+  "name": "@qp/web",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "vite start",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@solidjs/router": "catalog:main",
+    "@solidjs/start": "catalog:main",
+    "@solidjs/vite-plugin-nitro-2": "catalog:main",
+    "solid-js": "catalog:main",
+    "vite": "catalog:main"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:dev",
+    "tailwindcss": "catalog:dev"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

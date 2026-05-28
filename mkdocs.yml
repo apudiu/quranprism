@@ -1,0 +1,48 @@
+site_name: quranprism docs
+site_description: Product requirements and engineering documentation for quranprism.
+
+# docs/ is the site root. PRD lives in /prd (source of truth) and is surfaced
+# here through the docs/prd symlink — edit files under prd/, not docs/prd.
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+# _TEMPLATE.md files are scaffolds, not pages.
+exclude_docs: |
+  prd/_TEMPLATE.md
+  tasks/_TEMPLATE.md
+
+nav:
+  - Home: index.md
+  - Tasks:
+      - Progress: tasks/progress.md
+  - Product Requirements:
+      - Overview: prd/README.md
+  - Engineering:
+      - Architecture: architecture.md
+      - Database schema: database-schema.md
+  - Legal:
+      - Privacy policy: privacy-policy.md
+      - Terms of service: terms-of-service.md

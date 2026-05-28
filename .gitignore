@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Bun
+.bun/
+# `bun build --compile` standalone executables: emit into dist/ (ignored below).
+# Add explicit names here if compiling to the repo/workspace root.
+
+# Build outputs
+dist/
+build/
+.output/
+.vinxi/
+.solid/
+# mkdocs site build
+site/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+# `go test -c` binaries
+*.test
+# build / coverage output
+*.out
+# pprof profiles
+*.prof
+# `make build` output
+/apps/api/bin/
+/apps/api/vendor/
+# air hot-reload build dir
+/apps/api/tmp/
+# Compiled cmd binaries built into the module root instead of ./bin/.
+# Add a line here when a new entrypoint is added under cmd/.
+/apps/api/api
+/apps/api/worker
+/apps/api/cron
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Editor and IDE
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Lockfile mirror (binary lockfile is the source of truth)
+yarn.lock
+
+# Local development
+docker-compose.override.yml
