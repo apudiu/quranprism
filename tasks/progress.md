@@ -3,7 +3,7 @@
 Live index of all work in this repo — single source of truth for "where are we / what's next".
 Rules + lifecycle: see `CLAUDE.md` → **Progress tracking**. Keep terse. No historical log: shipped work folds into Project State and its per-task file is deleted.
 
-_Last updated: 2026-05-28 · apu@laptop_
+_Last updated: 2026-05-29 · apu@laptop_
 
 ## Project State
 
@@ -20,13 +20,13 @@ Copy `_TEMPLATE.md` → `tasks/<id>-<slug>.md` to start; assign next free `T-NNN
 
 | ID | Task | Status | Owner/Machine | File |
 |----|------|--------|---------------|------|
-| _(none)_ | | | | |
+| T-002 | ACL middleware + admin CRUD + `qp` CLI + audit log | in progress | apu@laptop | [T-002-acl-and-admin.md](./T-002-acl-and-admin.md) |
 
 ## Planned (backlog)
 
 Ordered. Promote to Active when started.
 
-- [ ] Full ACL middleware (`RequirePermission("Subject:action")`) + admin endpoints for groups/permissions CRUD
+- ~~Full ACL middleware + admin endpoints for groups/permissions CRUD~~ — promoted to T-002
 - [ ] River workers: data-export, post-grace user hard-delete, login-attempt prune cron
 - [ ] Notifications module (in-app inbox + SES email, wickmeet coalescing pattern)
 - [ ] NATS-WS gateway client-facing wiring (consumed by notifications inbox / sync sessions)

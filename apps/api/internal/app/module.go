@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	aclmod "github.com/apudiu/quranprism/api/internal/modules/acl"
+	auditmod "github.com/apudiu/quranprism/api/internal/modules/audit"
 	authmod "github.com/apudiu/quranprism/api/internal/modules/auth"
 	usermod "github.com/apudiu/quranprism/api/internal/modules/user"
 	"github.com/apudiu/quranprism/api/internal/platform/cache"
@@ -34,6 +35,7 @@ var Platform = fx.Options(
 // Adding a new module = one line here; nothing else.
 var Domains = fx.Options(
 	aclmod.Module,
+	auditmod.Module,
 	usermod.Module,
 	authmod.Module,
 )

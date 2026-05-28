@@ -51,3 +51,15 @@ UPDATE users
 SET is_disabled = $2,
     updated_at  = NOW()
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: ListUsers :many
+-- Admin user-listing. Optional case-insensitive substring filter on
+-- email; nil = no filter. Excludes soft-deleted users.
+SELECT id, email, name, email_verified_at, is_disabled, created_at,
+       COUNT(*) OVER() AS total
+FROM users
+WHERE deleted_at IS NULL
+  AND (sqlc.narg('email_like')::TEXT IS NULL
+       OR email ILIKE '%' || sqlc.narg('email_like')::TEXT || '%')
+ORDER BY email
+LIMIT $1 OFFSET $2;

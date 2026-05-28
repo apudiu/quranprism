@@ -1,16 +1,14 @@
 // Package acl implements the permission-group-user authorisation model
 // described in prd/acl.md.
 //
-// In this phase the module ships scaffold only: schema (covered by the
-// migration), the system-group + permission seed, and the small helper
-// surface that the auth/user modules need to drop users into the
-// "Default user" group on signup. Permission-enforcing middleware lands
-// in its own task.
+// Permission strings are `resource:action`, lowercase, snake_case for
+// multi-word resources. No wildcards. The seed reconciles the catalog;
+// groups are created at runtime by admins (no system groups).
 package acl
 
 // Permission is the (subject, action) atom enforced at the route layer
-// (later) — e.g. {"Playlist", "create"} matches the canonical wire name
-// "Playlist:create".
+// via RequirePermission — e.g. {"group", "create"} matches the
+// canonical wire name "group:create".
 type Permission struct {
 	Name        string
 	Subject     string
@@ -23,6 +21,5 @@ type Permission struct {
 type Group struct {
 	Name        string
 	Description string
-	IsSystem    bool
 	Permissions []string // canonical Permission.Name values
 }

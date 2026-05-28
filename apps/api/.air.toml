@@ -2,10 +2,11 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build -o ./tmp/api ./cmd/api"
-bin = "./tmp/api"
+cmd = "go build -o ./tmp/qp ./cmd/qp"
+bin = "./tmp/qp"
+args_bin = ["serve:api"]
 include_ext = ["go"]
-include_dir = ["cmd/api", "internal"]
+include_dir = ["cmd/qp", "internal"]
 exclude_dir = ["tmp", "bin", "migrations", ".git"]
 delay = 200
 stop_on_error = true

@@ -8,9 +8,19 @@ The Go backend. Single binary with three entrypoints. Not part of the Bun worksp
 
 ## Entrypoints
 
-- `cmd/api/` — HTTP server. Serves the public API consumed by `apps/web/` and `apps/admin/`.
-- `cmd/worker/` — Background job processor. Consumes the River queue.
-- `cmd/cron/` — Periodic scheduler. Enqueues due jobs into River. Uses Postgres advisory locks so only one instance schedules at a time.
+Single binary `cmd/qp/` (cobra root). Long-running services + one-shot ops share the same binary, picked by subcommand. Colon-namespaced names (`qp serve:api`, `qp admin:grant`).
+
+- `qp serve:api` — HTTP server. Serves the public API consumed by `apps/web/` and `apps/admin/`.
+- `qp serve:worker` — Background job processor. Consumes the River queue.
+- `qp serve:cron` — Periodic scheduler. Enqueues due jobs into River. Uses Postgres advisory locks so only one instance schedules at a time.
+- `qp migrate:up` / `:down` / `:status` — Apply / roll back / list goose migrations (embedded via `go:embed`).
+- `qp migrate:queue` — Apply River's internal migrations.
+- `qp seed:run` — Reconcile the ACL permission catalog into Postgres (same logic that runs on every `serve:*` boot). Idempotent; lets deploy pipelines populate perms without booting a server.
+- `qp admin:grant --email=… [--group=Admin]` — Bootstrap admin: upsert group, link every catalog perm to it, join the user. Calls the seed inline so it's safe on a freshly-migrated DB. Idempotent. Writes one `audit_log` row with `actor_kind='cli'`.
+
+**Deploy pipeline order (k8s Jobs / CI):** `qp migrate:up` → `qp migrate:queue` → (`qp seed:run` OR run `qp admin:grant` which seeds inline) → start `serve:*` pods. The seed also runs on every `serve:*` boot, so a hot redeploy of an existing cluster picks up new catalog entries automatically.
+
+Adding a new subcommand: drop a `newFooCmd() *cobra.Command` constructor in a new or existing `cmd/qp/<family>.go`, register it in `cmd/qp/main.go`. One-shot commands that don't need the full fx graph load `DATABASE_URL` via the `databaseURL()` helper; long-running services build `fx.New(app.XApp).Run()`.
 
 ## Internal package layout
 

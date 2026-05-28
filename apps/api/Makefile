@@ -1,47 +1,48 @@
 # apps/api/Makefile
+#
+# The whole CLI is the single `qp` binary (`cmd/qp`). Run any subcommand
+# via `go run ./cmd/qp <subcommand>` in dev or the built binary in prod.
 
 # Tooling
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 SQLC ?= sqlc
-GOOSE ?= goose
 
-# Database
+# Database (used by tooling that talks directly to postgres outside the binary)
 DATABASE_URL ?= postgres://qp:qp_dev@localhost:5432/qp?sslmode=disable
 
 .PHONY: help
 help:
 	@echo "Common targets:"
-	@echo "  make run-api         - run the HTTP API server"
-	@echo "  make run-worker      - run the background job worker"
-	@echo "  make run-cron        - run the scheduler"
-	@echo "  make build           - build all three binaries to ./bin/"
-	@echo "  make test            - run unit tests"
+	@echo "  make run-api          - run the HTTP API (qp serve:api)"
+	@echo "  make run-worker       - run the worker (qp serve:worker)"
+	@echo "  make run-cron         - run the scheduler (qp serve:cron)"
+	@echo "  make build            - build the qp binary to ./bin/qp"
+	@echo "  make test             - run unit tests"
 	@echo "  make test-integration - run integration tests (requires running Postgres)"
-	@echo "  make lint            - run golangci-lint"
-	@echo "  make sqlc            - regenerate sqlc code from queries"
-	@echo "  make migrate-up      - apply pending app migrations"
-	@echo "  make migrate-down    - roll back the last app migration"
-	@echo "  make river-migrate-up - apply River internal migrations"
+	@echo "  make lint             - run golangci-lint"
+	@echo "  make sqlc             - regenerate sqlc code from queries"
+	@echo "  make migrate-up       - apply pending goose migrations"
+	@echo "  make migrate-down     - roll back the last goose migration"
+	@echo "  make migrate-status   - list goose migration state"
+	@echo "  make river-migrate-up - apply River's internal migrations (qp migrate:queue)"
 
 .PHONY: run-api
 run-api:
-	$(GO) run ./cmd/api
+	$(GO) run ./cmd/qp serve:api
 
 .PHONY: run-worker
 run-worker:
-	$(GO) run ./cmd/worker
+	$(GO) run ./cmd/qp serve:worker
 
 .PHONY: run-cron
 run-cron:
-	$(GO) run ./cmd/cron
+	$(GO) run ./cmd/qp serve:cron
 
 .PHONY: build
 build:
 	mkdir -p ./bin
-	$(GO) build -o ./bin/api ./cmd/api
-	$(GO) build -o ./bin/worker ./cmd/worker
-	$(GO) build -o ./bin/cron ./cmd/cron
+	$(GO) build -o ./bin/qp ./cmd/qp
 
 .PHONY: test
 test:
@@ -61,16 +62,16 @@ sqlc:
 
 .PHONY: migrate-up
 migrate-up:
-	$(GOOSE) -dir migrations postgres "$(DATABASE_URL)" up
+	DATABASE_URL=$(DATABASE_URL) $(GO) run ./cmd/qp migrate:up
 
 .PHONY: migrate-down
 migrate-down:
-	$(GOOSE) -dir migrations postgres "$(DATABASE_URL)" down
+	DATABASE_URL=$(DATABASE_URL) $(GO) run ./cmd/qp migrate:down
 
 .PHONY: migrate-status
 migrate-status:
-	$(GOOSE) -dir migrations postgres "$(DATABASE_URL)" status
+	DATABASE_URL=$(DATABASE_URL) $(GO) run ./cmd/qp migrate:status
 
 .PHONY: river-migrate-up
 river-migrate-up:
-	$(GO) run ./cmd/river-migrate up
+	DATABASE_URL=$(DATABASE_URL) $(GO) run ./cmd/qp migrate:queue

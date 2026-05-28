@@ -7,8 +7,10 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const cancelUserDeletionGrace = `-- name: CancelUserDeletionGrace :exec
@@ -111,6 +113,63 @@ func (q *Queries) IsEmailVerified(ctx context.Context, id uuid.UUID) (bool, erro
 	var verified bool
 	err := row.Scan(&verified)
 	return verified, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, name, email_verified_at, is_disabled, created_at,
+       COUNT(*) OVER() AS total
+FROM users
+WHERE deleted_at IS NULL
+  AND ($3::TEXT IS NULL
+       OR email ILIKE '%' || $3::TEXT || '%')
+ORDER BY email
+LIMIT $1 OFFSET $2
+`
+
+type ListUsersParams struct {
+	Limit     int32   `json:"limit"`
+	Offset    int32   `json:"offset"`
+	EmailLike *string `json:"email_like"`
+}
+
+type ListUsersRow struct {
+	ID              uuid.UUID          `json:"id"`
+	Email           string             `json:"email"`
+	Name            string             `json:"name"`
+	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
+	IsDisabled      bool               `json:"is_disabled"`
+	CreatedAt       time.Time          `json:"created_at"`
+	Total           int64              `json:"total"`
+}
+
+// Admin user-listing. Optional case-insensitive substring filter on
+// email; nil = no filter. Excludes soft-deleted users.
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Limit, arg.Offset, arg.EmailLike)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUsersRow{}
+	for rows.Next() {
+		var i ListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.EmailVerifiedAt,
+			&i.IsDisabled,
+			&i.CreatedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markUserEmailVerified = `-- name: MarkUserEmailVerified :exec

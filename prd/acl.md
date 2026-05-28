@@ -14,32 +14,29 @@ Related: [accounts.md](./accounts.md), [admin.md](./admin.md)
 - **ACL-3** — Group record: `(id, name, description, ...)`. A Group bundles a set of Permissions via `group_permission`. _(both)_
 - **ACL-4** — A User belongs to zero or more Groups via `group_user`. Effective permission set = union of Permissions across all the User's Groups. _(both)_
 - **ACL-5** — Authorization checks at every API boundary use the user's effective permission set. Code checks permissions by (subject, action), never by "role name" or Group name. _(both)_
-- **ACL-6** — Seed groups for v1 (created at migration time, mutable post-deploy via admin UI):
-  - **Default user** — every new signup is automatically added. Permissions: `Playlist:*` (own), `Bookmark:*` (own), `BookmarkCategory:*` (own), `Comment:create+delete` (own), `Catalog:view` (read-only: languages, translators, reciters, surahs, ayahs).
-  - **Super Admin** — full permission set. Manually granted by another Super Admin or via migration seed for the bootstrap admin.
-  - **Content Manager** — catalog management permissions: Language/Translator/Reciter create/update/disable, audio upload, translation text bulk import. No user-management permissions. _(both)_
-- **ACL-7** — Admin UI for groups: a user with `Group:*` and `Permission:view` permissions can create/edit Groups, manage Permissions assigned to Groups, and manage user-to-group memberships. _(both)_
+- **ACL-6** — _Superseded by T-002 (2026-05-29)_: no system groups are seeded. Admins create groups post-deploy via the `qp` CLI bootstrap (`qp admin:grant --email=… [--group=Admin]`). The seeded permission catalog is the authoritative list; group composition is operator policy. _(both)_
+- **ACL-7** — Admin endpoints under `/v1/admin/*` are gated by atomic perms: `group:create`, `group:view`, `group:update`, `group:delete`, `permission:view`, `user:view`. A user with `group:update` can manage memberships and permission assignments. _(both)_
 - **ACL-8** — A user may be added to multiple Groups; permissions stack additively. Removing a Group revokes only the permissions unique to that Group. _(both)_
-- **ACL-9** — Group `Default user` cannot be deleted or have its permission set reduced below the minimum end-user surface (enforced in admin UI). _(both)_
+- **ACL-9** — _Superseded by T-002 (2026-05-29)_: self-protection now applies at the permission level — any mutation that would leave zero users holding `group:update` is rejected with `409 last_admin_protected`. Last-admin recovery is the `qp admin:grant` CLI command. _(both)_
 - **ACL-10** — Audit log: every Group/Permission mutation and every user-group membership change is logged with the actor's user_id, action, target IDs, and timestamp. _(both)_
 
 ## Rules / invariants
 
 - Authorization is **permission-based**, not role-based. Code never checks Group name.
-- Every signup is added to `Default user` at registration time. Removing them from `Default user` is allowed (used for moderation) and effectively locks their personal data behind admin-only access.
-- Permission `subject` and `name` columns are case-sensitive and use PascalCase resource names + snake_case actions (e.g., `Playlist:create`). Conventions enforced at seed.
-- A user can be a Super Admin AND a normal user simultaneously — they just have more Groups.
-- A user with zero Groups has zero permissions; they cannot read catalog, cannot create anything, cannot delete their own account (the deletion endpoint requires `Account:delete_own`).
+- _Superseded by T-002 (2026-05-29)_: no system groups, no auto-join. New signups belong to zero groups. **Default = open**: any authenticated user can reach any route that lacks `RequirePermission` middleware (catalog browsing, playlist/bookmark/category CRUD on their own data — gated by ownership at the data layer, not by permissions). Restricted operations (admin endpoints, future catalog ops) carry an explicit `RequirePermission("resource:action")`.
+- Permission names are `resource:action`, lowercase, snake_case for multi-word resources (e.g. `group:create`, `audit_log:view`, `audio_file:upload`). No wildcards. Conventions enforced at seed.
+- A user can hold every admin perm AND remain a normal user — they just have more Groups.
+- A user with zero Groups has zero permissions; they still reach every unrestricted route (per the default-open rule).
 
 ## Acceptance
 
-- A new signup is automatically in `Default user` and can create a playlist; cannot create a Language.
-- Adding the user to `Content Manager` immediately lets them create a Language (permission re-check on next request; no need to log in again).
-- Removing the user from `Content Manager` immediately revokes that capability.
-- A user with no Groups can sign in but every personal-data endpoint returns 403.
-- An admin without `Group:delete` cannot delete a Group.
-- An attempt to delete the `Default user` Group returns 422 with an explanatory error.
-- The audit log shows a row for every Group membership change with actor, target user, timestamp.
+- A new signup has zero groups but can still reach unrestricted routes (catalog, own playlists/bookmarks).
+- After `qp admin:grant`, the user can hit `/v1/admin/groups` and manage other users / groups / permissions.
+- Adding a user to a group containing a perm immediately lets them use the gated endpoint on their next request (no re-login).
+- Removing the user from the granting group immediately revokes that capability.
+- An admin without `group:delete` cannot delete a Group (403 `insufficient_permissions`).
+- An attempt to revoke the last user holding `group:update` returns 409 with code `last_admin_protected`.
+- The audit log shows a row for every Group / Permission link / membership mutation with actor, action, target IDs, timestamp.
 
 ## Open questions
 

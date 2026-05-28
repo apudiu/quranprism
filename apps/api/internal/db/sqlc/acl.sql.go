@@ -7,12 +7,132 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUsersWithPermission = `-- name: CountUsersWithPermission :one
+SELECT COUNT(DISTINCT gu.user_id)::BIGINT AS n
+FROM group_user gu
+JOIN group_permission gp ON gp.group_id = gu.group_id
+JOIN permissions p       ON p.id = gp.permission_id
+WHERE p.name = $1
+`
+
+// Distinct users currently holding the named permission via any group.
+func (q *Queries) CountUsersWithPermission(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersWithPermission, name)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
+const countUsersWithPermissionExcludingGroup = `-- name: CountUsersWithPermissionExcludingGroup :one
+SELECT COUNT(DISTINCT gu.user_id)::BIGINT AS n
+FROM group_user gu
+JOIN group_permission gp ON gp.group_id = gu.group_id
+JOIN permissions p       ON p.id = gp.permission_id
+WHERE p.name = $1
+  AND gu.group_id <> $2
+`
+
+type CountUsersWithPermissionExcludingGroupParams struct {
+	Name    string    `json:"name"`
+	GroupID uuid.UUID `json:"group_id"`
+}
+
+// Distinct users holding the perm via any group OTHER than the named
+// one. Used by DeleteGroup / RemoveGroupPermission self-protect: if 0
+// after the mutation, the system would orphan the perm.
+func (q *Queries) CountUsersWithPermissionExcludingGroup(ctx context.Context, arg CountUsersWithPermissionExcludingGroupParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersWithPermissionExcludingGroup, arg.Name, arg.GroupID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
+const countUsersWithPermissionExcludingMembership = `-- name: CountUsersWithPermissionExcludingMembership :one
+SELECT COUNT(DISTINCT gu.user_id)::BIGINT AS n
+FROM group_user gu
+JOIN group_permission gp ON gp.group_id = gu.group_id
+JOIN permissions p       ON p.id = gp.permission_id
+WHERE p.name = $1
+  AND NOT (gu.user_id = $2 AND gu.group_id = $3)
+`
+
+type CountUsersWithPermissionExcludingMembershipParams struct {
+	Name    string    `json:"name"`
+	UserID  uuid.UUID `json:"user_id"`
+	GroupID uuid.UUID `json:"group_id"`
+}
+
+// Distinct users holding the perm, excluding the specific (user, group)
+// membership row. Used by RemoveUserFromGroup self-protect.
+func (q *Queries) CountUsersWithPermissionExcludingMembership(ctx context.Context, arg CountUsersWithPermissionExcludingMembershipParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersWithPermissionExcludingMembership, arg.Name, arg.UserID, arg.GroupID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
+const createGroup = `-- name: CreateGroup :one
+
+INSERT INTO groups (name, description)
+VALUES ($1, $2)
+RETURNING id, name, description, created_at, updated_at
+`
+
+type CreateGroupParams struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+// -- Admin CRUD (T-002) -------------------------------------------------
+// Distinct from UpsertGroup: this surfaces a unique-constraint violation
+// on (name) so the handler can return 409 instead of silently updating.
+func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error) {
+	row := q.db.QueryRow(ctx, createGroup, arg.Name, arg.Description)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteGroup = `-- name: DeleteGroup :exec
+DELETE FROM groups WHERE id = $1
+`
+
+func (q *Queries) DeleteGroup(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGroup, id)
+	return err
+}
+
+const getGroupByID = `-- name: GetGroupByID :one
+SELECT id, name, description, created_at, updated_at FROM groups WHERE id = $1
+`
+
+func (q *Queries) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error) {
+	row := q.db.QueryRow(ctx, getGroupByID, id)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getGroupByName = `-- name: GetGroupByName :one
-SELECT id, name, description, is_system, created_at, updated_at FROM groups WHERE name = $1
+SELECT id, name, description, created_at, updated_at FROM groups WHERE name = $1
 `
 
 func (q *Queries) GetGroupByName(ctx context.Context, name string) (Group, error) {
@@ -22,7 +142,25 @@ func (q *Queries) GetGroupByName(ctx context.Context, name string) (Group, error
 		&i.ID,
 		&i.Name,
 		&i.Description,
-		&i.IsSystem,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPermissionByID = `-- name: GetPermissionByID :one
+SELECT id, name, subject, action, description, created_at, updated_at FROM permissions WHERE id = $1
+`
+
+func (q *Queries) GetPermissionByID(ctx context.Context, id uuid.UUID) (Permission, error) {
+	row := q.db.QueryRow(ctx, getPermissionByID, id)
+	var i Permission
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Subject,
+		&i.Action,
+		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -46,6 +184,65 @@ func (q *Queries) GetPermissionByName(ctx context.Context, name string) (Permiss
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const groupHasPermission = `-- name: GroupHasPermission :one
+SELECT EXISTS (
+    SELECT 1
+    FROM group_permission gp
+    JOIN permissions p ON p.id = gp.permission_id
+    WHERE gp.group_id = $1 AND p.name = $2
+)::BOOLEAN AS has
+`
+
+type GroupHasPermissionParams struct {
+	GroupID uuid.UUID `json:"group_id"`
+	Name    string    `json:"name"`
+}
+
+// Cheap (boolean) test used by the self-protect guards before paying
+// for the count query.
+func (q *Queries) GroupHasPermission(ctx context.Context, arg GroupHasPermissionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, groupHasPermission, arg.GroupID, arg.Name)
+	var has bool
+	err := row.Scan(&has)
+	return has, err
+}
+
+const groupMembershipExists = `-- name: GroupMembershipExists :one
+SELECT EXISTS (
+    SELECT 1 FROM group_user WHERE group_id = $1 AND user_id = $2
+)::BOOLEAN AS exists
+`
+
+type GroupMembershipExistsParams struct {
+	GroupID uuid.UUID `json:"group_id"`
+	UserID  uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) GroupMembershipExists(ctx context.Context, arg GroupMembershipExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, groupMembershipExists, arg.GroupID, arg.UserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const groupPermissionLinkExists = `-- name: GroupPermissionLinkExists :one
+SELECT EXISTS (
+    SELECT 1 FROM group_permission WHERE group_id = $1 AND permission_id = $2
+)::BOOLEAN AS exists
+`
+
+type GroupPermissionLinkExistsParams struct {
+	GroupID      uuid.UUID `json:"group_id"`
+	PermissionID uuid.UUID `json:"permission_id"`
+}
+
+func (q *Queries) GroupPermissionLinkExists(ctx context.Context, arg GroupPermissionLinkExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, groupPermissionLinkExists, arg.GroupID, arg.PermissionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const joinUserToGroup = `-- name: JoinUserToGroup :exec
@@ -80,8 +277,56 @@ func (q *Queries) LinkGroupPermission(ctx context.Context, arg LinkGroupPermissi
 	return err
 }
 
+const listGroups = `-- name: ListGroups :many
+SELECT id, name, description, created_at, updated_at, COUNT(*) OVER() AS total
+FROM groups
+ORDER BY name
+LIMIT $1 OFFSET $2
+`
+
+type ListGroupsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListGroupsRow struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Total       int64     `json:"total"`
+}
+
+func (q *Queries) ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listGroups, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGroupsRow{}
+	for rows.Next() {
+		var i ListGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGroupsForUser = `-- name: ListGroupsForUser :many
-SELECT g.id, g.name, g.description, g.is_system, g.created_at, g.updated_at
+SELECT g.id, g.name, g.description, g.created_at, g.updated_at
 FROM groups g
 JOIN group_user gu ON gu.group_id = g.id
 WHERE gu.user_id = $1
@@ -101,9 +346,106 @@ func (q *Queries) ListGroupsForUser(ctx context.Context, userID uuid.UUID) ([]Gr
 			&i.ID,
 			&i.Name,
 			&i.Description,
-			&i.IsSystem,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembersOfGroup = `-- name: ListMembersOfGroup :many
+SELECT u.id, u.email, u.name, u.email_verified_at, u.is_disabled, u.created_at
+FROM users u
+JOIN group_user gu ON gu.user_id = u.id
+WHERE gu.group_id = $1 AND u.deleted_at IS NULL
+ORDER BY u.email
+`
+
+type ListMembersOfGroupRow struct {
+	ID              uuid.UUID          `json:"id"`
+	Email           string             `json:"email"`
+	Name            string             `json:"name"`
+	EmailVerifiedAt pgtype.Timestamptz `json:"email_verified_at"`
+	IsDisabled      bool               `json:"is_disabled"`
+	CreatedAt       time.Time          `json:"created_at"`
+}
+
+// Returns the soft-delete-filtered users who belong to a group, ordered
+// by email. Used by GET /v1/admin/groups/:id detail.
+func (q *Queries) ListMembersOfGroup(ctx context.Context, groupID uuid.UUID) ([]ListMembersOfGroupRow, error) {
+	rows, err := q.db.Query(ctx, listMembersOfGroup, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMembersOfGroupRow{}
+	for rows.Next() {
+		var i ListMembersOfGroupRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.EmailVerifiedAt,
+			&i.IsDisabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPermissions = `-- name: ListPermissions :many
+SELECT id, name, subject, action, description, created_at, updated_at, COUNT(*) OVER() AS total
+FROM permissions
+ORDER BY name
+LIMIT $1 OFFSET $2
+`
+
+type ListPermissionsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListPermissionsRow struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Subject     string    `json:"subject"`
+	Action      string    `json:"action"`
+	Description *string   `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Total       int64     `json:"total"`
+}
+
+func (q *Queries) ListPermissions(ctx context.Context, arg ListPermissionsParams) ([]ListPermissionsRow, error) {
+	rows, err := q.db.Query(ctx, listPermissions, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPermissionsRow{}
+	for rows.Next() {
+		var i ListPermissionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Subject,
+			&i.Action,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Total,
 		); err != nil {
 			return nil, err
 		}
@@ -218,30 +560,56 @@ func (q *Queries) UnlinkGroupPermission(ctx context.Context, arg UnlinkGroupPerm
 	return err
 }
 
-const upsertGroup = `-- name: UpsertGroup :one
-INSERT INTO groups (name, description, is_system)
-VALUES ($1, $2, $3)
-ON CONFLICT (name) DO UPDATE
-SET description = EXCLUDED.description,
-    is_system   = EXCLUDED.is_system,
+const updateGroup = `-- name: UpdateGroup :one
+UPDATE groups
+SET name        = COALESCE($1,        name),
+    description = COALESCE($2, description),
     updated_at  = NOW()
-RETURNING id, name, description, is_system, created_at, updated_at
+WHERE id = $3
+RETURNING id, name, description, created_at, updated_at
 `
 
-type UpsertGroupParams struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	IsSystem    bool    `json:"is_system"`
+type UpdateGroupParams struct {
+	Name        *string   `json:"name"`
+	Description *string   `json:"description"`
+	ID          uuid.UUID `json:"id"`
 }
 
-func (q *Queries) UpsertGroup(ctx context.Context, arg UpsertGroupParams) (Group, error) {
-	row := q.db.QueryRow(ctx, upsertGroup, arg.Name, arg.Description, arg.IsSystem)
+// Optional fields via sqlc.narg; nil = leave unchanged.
+func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error) {
+	row := q.db.QueryRow(ctx, updateGroup, arg.Name, arg.Description, arg.ID)
 	var i Group
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Description,
-		&i.IsSystem,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertGroup = `-- name: UpsertGroup :one
+INSERT INTO groups (name, description)
+VALUES ($1, $2)
+ON CONFLICT (name) DO UPDATE
+SET description = EXCLUDED.description,
+    updated_at  = NOW()
+RETURNING id, name, description, created_at, updated_at
+`
+
+type UpsertGroupParams struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+func (q *Queries) UpsertGroup(ctx context.Context, arg UpsertGroupParams) (Group, error) {
+	row := q.db.QueryRow(ctx, upsertGroup, arg.Name, arg.Description)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

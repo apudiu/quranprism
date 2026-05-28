@@ -12,6 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AuditLog struct {
+	ID          uuid.UUID   `json:"id"`
+	ActorUserID pgtype.UUID `json:"actor_user_id"`
+	ActorKind   string      `json:"actor_kind"`
+	Action      string      `json:"action"`
+	SubjectType string      `json:"subject_type"`
+	SubjectID   pgtype.UUID `json:"subject_id"`
+	Changes     []byte      `json:"changes"`
+	CreatedAt   time.Time   `json:"created_at"`
+}
+
 type EmailVerificationToken struct {
 	ID        uuid.UUID          `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`
@@ -25,7 +36,6 @@ type Group struct {
 	ID          uuid.UUID `json:"id"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description"`
-	IsSystem    bool      `json:"is_system"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

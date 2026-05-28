@@ -16,29 +16,63 @@ type Querier interface {
 	ConsumePasswordResetToken(ctx context.Context, id uuid.UUID) error
 	// Drives the ACC-6 lockout: caller passes the cutoff (NOW() - window).
 	CountRecentFailedLogins(ctx context.Context, arg CountRecentFailedLoginsParams) (int32, error)
+	// Distinct users currently holding the named permission via any group.
+	CountUsersWithPermission(ctx context.Context, name string) (int64, error)
+	// Distinct users holding the perm via any group OTHER than the named
+	// one. Used by DeleteGroup / RemoveGroupPermission self-protect: if 0
+	// after the mutation, the system would orphan the perm.
+	CountUsersWithPermissionExcludingGroup(ctx context.Context, arg CountUsersWithPermissionExcludingGroupParams) (int64, error)
+	// Distinct users holding the perm, excluding the specific (user, group)
+	// membership row. Used by RemoveUserFromGroup self-protect.
+	CountUsersWithPermissionExcludingMembership(ctx context.Context, arg CountUsersWithPermissionExcludingMembershipParams) (int64, error)
 	CreateEmailVerificationToken(ctx context.Context, arg CreateEmailVerificationTokenParams) (EmailVerificationToken, error)
+	// -- Admin CRUD (T-002) -------------------------------------------------
+	// Distinct from UpsertGroup: this surfaces a unique-constraint violation
+	// on (name) so the handler can return 409 instead of silently updating.
+	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreateRefreshSession(ctx context.Context, arg CreateRefreshSessionParams) (RefreshSession, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredEmailVerificationTokens(ctx context.Context) error
 	DeleteExpiredPasswordResetTokens(ctx context.Context) error
 	DeleteExpiredRefreshSessions(ctx context.Context) error
+	DeleteGroup(ctx context.Context, id uuid.UUID) error
 	// Keeps the table from growing unboundedly. Cron-driven; safe to run any time.
 	DeleteOldLoginAttempts(ctx context.Context) error
 	GetEmailVerificationToken(ctx context.Context, tokenHash string) (EmailVerificationToken, error)
+	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByName(ctx context.Context, name string) (Group, error)
 	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
+	GetPermissionByID(ctx context.Context, id uuid.UUID) (Permission, error)
 	GetPermissionByName(ctx context.Context, name string) (Permission, error)
 	GetRefreshSessionByTokenHash(ctx context.Context, tokenHash string) (RefreshSession, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	// Cheap (boolean) test used by the self-protect guards before paying
+	// for the count query.
+	GroupHasPermission(ctx context.Context, arg GroupHasPermissionParams) (bool, error)
+	GroupMembershipExists(ctx context.Context, arg GroupMembershipExistsParams) (bool, error)
+	GroupPermissionLinkExists(ctx context.Context, arg GroupPermissionLinkExistsParams) (bool, error)
 	IsEmailVerified(ctx context.Context, id uuid.UUID) (bool, error)
 	JoinUserToGroup(ctx context.Context, arg JoinUserToGroupParams) error
 	LinkGroupPermission(ctx context.Context, arg LinkGroupPermissionParams) error
+	// Paginated list with total via COUNT(*) OVER(). Ordered newest-first.
+	// Filters are optional via sqlc.narg so the same query supports
+	// "all", "by actor", "by subject", or "by subject_type" lookups.
+	ListAuditLog(ctx context.Context, arg ListAuditLogParams) ([]ListAuditLogRow, error)
+	ListGroups(ctx context.Context, arg ListGroupsParams) ([]ListGroupsRow, error)
 	ListGroupsForUser(ctx context.Context, userID uuid.UUID) ([]Group, error)
+	// Returns the soft-delete-filtered users who belong to a group, ordered
+	// by email. Used by GET /v1/admin/groups/:id detail.
+	ListMembersOfGroup(ctx context.Context, groupID uuid.UUID) ([]ListMembersOfGroupRow, error)
+	ListPermissions(ctx context.Context, arg ListPermissionsParams) ([]ListPermissionsRow, error)
 	ListPermissionsForGroup(ctx context.Context, groupID uuid.UUID) ([]Permission, error)
 	ListPermissionsForUser(ctx context.Context, userID uuid.UUID) ([]Permission, error)
+	// Admin user-listing. Optional case-insensitive substring filter on
+	// email; nil = no filter. Excludes soft-deleted users.
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	MarkUserEmailVerified(ctx context.Context, id uuid.UUID) error
+	RecordAuditLog(ctx context.Context, arg RecordAuditLogParams) (AuditLog, error)
 	RecordLoginAttempt(ctx context.Context, arg RecordLoginAttemptParams) error
 	RemoveUserFromGroup(ctx context.Context, arg RemoveUserFromGroupParams) error
 	RevokeAllRefreshSessionsForUser(ctx context.Context, userID uuid.UUID) error
@@ -48,6 +82,8 @@ type Querier interface {
 	StartUserDeletionGrace(ctx context.Context, id uuid.UUID) error
 	TouchRefreshSession(ctx context.Context, id uuid.UUID) error
 	UnlinkGroupPermission(ctx context.Context, arg UnlinkGroupPermissionParams) error
+	// Optional fields via sqlc.narg; nil = leave unchanged.
+	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpsertGroup(ctx context.Context, arg UpsertGroupParams) (Group, error)

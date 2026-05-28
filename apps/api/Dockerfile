@@ -10,20 +10,21 @@ RUN go mod download
 # Copy source
 COPY . .
 
-# Build all three binaries
-ARG TARGET=api
+# Single binary, every entrypoint via subcommand (qp serve:api, qp
+# serve:worker, qp serve:cron, qp migrate:up, qp admin:grant, ...).
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -ldflags="-s -w" \
-    -o /out/binary \
-    ./cmd/${TARGET}
+    -o /out/qp \
+    ./cmd/qp
 
 # Runtime stage
 FROM chainguard/static:latest
 
-COPY --from=build /out/binary /app/binary
+COPY --from=build /out/qp /app/qp
 
 USER 65532:65532
 EXPOSE 3000
 
-ENTRYPOINT ["/app/binary"]
+ENTRYPOINT ["/app/qp"]
+CMD ["serve:api"]

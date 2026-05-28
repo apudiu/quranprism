@@ -94,12 +94,10 @@ func (s *Service) Signup(ctx context.Context, req SignupRequest) (*user.User, er
 		return nil, err
 	}
 
-	// Best-effort join. Failure here means the user exists but can't
-	// access default-tier features — surface the error so signup can be
-	// retried cleanly.
-	if err := s.aclSvc.JoinGroupByName(ctx, u.ID, acl.DefaultUserGroupName); err != nil {
-		return nil, fmt.Errorf("auth: default group join: %w", err)
-	}
+	// New users land with zero groups. Default-tier features (catalog
+	// view, playlists, bookmarks) are reachable by any authenticated
+	// user since their routes don't carry RequirePermission. Admin
+	// powers come from explicit group membership (see prd/acl.md).
 
 	if err := s.sendVerificationEmail(ctx, u); err != nil {
 		// Don't fail the signup — verification can be re-requested. Log

@@ -6,7 +6,7 @@ Multilingual Quran listening service. Plays Quran recitation interleaved with us
 
 Polyglot monorepo. Bun manages JS/TS workspaces. The Go module is independent (not a Bun workspace).
 
-- `apps/api/` — Go backend, three `cmd/` entrypoints (`api`, `worker`, `cron`) + `cmd/river-migrate` helper. Modular monolith composed with Uber fx; see `docs/decisions/0001-di-fx-modular-monolith.md`.
+- `apps/api/` — Go backend, single `cmd/qp/` cobra binary with colon-namespaced subcommands (`qp serve:api|worker|cron`, `qp migrate:up|down|status|queue`, `qp admin:grant`). Modular monolith composed with Uber fx; see `docs/decisions/0001-di-fx-modular-monolith.md`.
 - `apps/api/internal/platform/` — cross-cutting infra (config, logger, db, cache, pubsub, queue, mailer, jwt). Never imports `internal/modules/*`.
 - `apps/api/internal/transport/http/` — router, middleware, JSON envelope, typed-error → status mapping. Leaf `router.Registrar` interface (`http/router/`) breaks the modules-vs-app import cycle.
 - `apps/api/internal/modules/<name>/` — domain modules (NestJS-style bundle: service + repo + handler + dto + errors + tests). Each exports an `fx.Module`; handlers self-register on the chi router via `group:"routes"`.
@@ -24,6 +24,7 @@ Polyglot monorepo. Bun manages JS/TS workspaces. The Go module is independent (n
 Authoritative. Prefer latest stable for new deps; bump pins deliberately and update this list in the same PR.
 
 - Go 1.26 (min 1.26.0) · Bun 1.3.14 (`.bun-version`) · PostgreSQL 18.4 · Redis 7.4 · NATS 2.10 · Mailpit v1.20 (dev SMTP)
+- CLI `github.com/spf13/cobra` v1.10.x (`cmd/qp` cobra root, colon-namespaced subcommands)
 - SolidStart `@solidjs/start` 2.0.0-alpha + `@solidjs/vite-plugin-nitro-2` (alpha — pin exact, bump deliberately) · `solid-js` 1.9.x
 - DI: `go.uber.org/fx` v1.24.x (Nest-style modular composition, see `docs/decisions/0001-di-fx-modular-monolith.md`)
 - pgx `github.com/jackc/pgx/v5` v5.9.x · sqlc v1.31.x · goose `github.com/pressly/goose/v3` v3.27.x
@@ -126,9 +127,10 @@ values in `docker-compose.yml` — add new keys to the corresponding
 ## Development workflow
 
 - Full dev stack: `docker compose up -d` (repo root → postgres + api + web + admin)
-- API / worker / cron: `cd apps/api && make run-api` (`run-worker`, `run-cron`)
+- API / worker / cron: `cd apps/api && make run-api` (`run-worker`, `run-cron`) — each maps to `go run ./cmd/qp serve:<role>`
 - Web / admin: `bun run dev:web` · `bun run dev:admin`
-- Migrations: `make migrate-up` · `make migrate-down` · `make river-migrate-up` (in `apps/api`)
+- Migrations: `make migrate-up` · `make migrate-down` · `make migrate-status` · `make river-migrate-up` (all wrap `go run ./cmd/qp migrate:<verb>`)
+- Bootstrap first admin: `docker compose exec api /app/qp admin:grant --email=alice@example.com [--group=Admin]` (idempotent; user must have signed up + verified first)
 - Tests: `cd apps/api && make test` · `bun test --filter '*'`
 - Lint: `bun run lint` · `cd apps/api && golangci-lint run`
 - Docs site (mkdocs-material): `docker compose --profile docs up docs` → http://localhost:8000. Renders `docs/` + the PRD via the `docs/prd` symlink (edit `prd/`, not `docs/prd`).
