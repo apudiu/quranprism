@@ -55,3 +55,18 @@ docker compose up -d --build web admin
 - `docs/database-schema.md` — Schema with rationale
 - `docs/privacy-policy.md` and `docs/terms-of-service.md` — Legal documents
 - `docs/decisions/` — Architecture decision records
+
+- M-1 — move GetUserByEmail inside the admin:grant tx (close TOCTOU race)
+- M-3 — align admin:grant timeout from 30s to 60s
+- L-2 — --email format check (reject input without @)
+- L-3 — .air.toml watch coverage for the root migrations.go
+- L-4 — flip SilenceUsage: false so flag errors include a help hint
+
+Out of scope entirely:
+- k8s manifests (already deferred by T-002 plan).
+- L-5 (idempotent admin:grant description-clobber).
+- L-6 (worker/cron compose services).
+- L-7 (binary-path standardisation across dev/container/prod).
+- Per-mode binary stripping via build tags.
+- Test refactor to inject a fake *sqlcdb.Queries for unit-testing acl.Service and audit.Service.Record directly.
+- Restructuring colon-namespaced cobra commands into space-separated nested commands.
